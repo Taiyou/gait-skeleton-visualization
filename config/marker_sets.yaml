@@ -1,0 +1,214 @@
+# Marker Set Configuration
+# Define your custom marker sets here
+# Each marker set contains:
+#   - markers: List of marker names (must match CSV column prefixes)
+#   - connections: List of [marker1, marker2] pairs to draw bones
+#   - colors: Optional color definitions for different body parts
+
+# Default full-body marker set (example based on common gait analysis)
+default:
+  name: "Default Full Body"
+  description: "Standard full-body marker set for gait analysis"
+  
+  # Marker names - these should match your CSV column prefixes
+  # CSV format expected: MarkerName_X, MarkerName_Y, MarkerName_Z
+  markers:
+    # Head
+    - HEAD
+    - LFHD  # Left front head
+    - RFHD  # Right front head
+    - LBHD  # Left back head
+    - RBHD  # Right back head
+    
+    # Trunk
+    - C7    # 7th cervical vertebra
+    - T10   # 10th thoracic vertebra
+    - CLAV  # Clavicle
+    - STRN  # Sternum
+    - RBAK  # Right back
+    
+    # Pelvis
+    - LASI  # Left ASIS
+    - RASI  # Right ASIS
+    - LPSI  # Left PSIS
+    - RPSI  # Right PSIS
+    - SACR  # Sacrum (optional, can be calculated)
+    
+    # Left arm
+    - LSHO  # Left shoulder
+    - LELB  # Left elbow
+    - LWRA  # Left wrist A
+    - LWRB  # Left wrist B
+    - LFIN  # Left finger
+    
+    # Right arm
+    - RSHO  # Right shoulder
+    - RELB  # Right elbow
+    - RWRA  # Right wrist A
+    - RWRB  # Right wrist B
+    - RFIN  # Right finger
+    
+    # Left leg
+    - LKNE  # Left knee
+    - LANK  # Left ankle
+    - LHEE  # Left heel
+    - LTOE  # Left toe
+    
+    # Right leg
+    - RKNE  # Right knee
+    - RANK  # Right ankle
+    - RHEE  # Right heel
+    - RTOE  # Right toe
+  
+  # Bone connections - pairs of markers to connect with lines
+  connections:
+    # Head
+    - [LFHD, RFHD]
+    - [LFHD, LBHD]
+    - [RFHD, RBHD]
+    - [LBHD, RBHD]
+    
+    # Spine
+    - [C7, CLAV]
+    - [C7, T10]
+    - [CLAV, STRN]
+    
+    # Shoulders
+    - [CLAV, LSHO]
+    - [CLAV, RSHO]
+    
+    # Left arm
+    - [LSHO, LELB]
+    - [LELB, LWRA]
+    - [LWRA, LWRB]
+    - [LWRA, LFIN]
+    
+    # Right arm
+    - [RSHO, RELB]
+    - [RELB, RWRA]
+    - [RWRA, RWRB]
+    - [RWRA, RFIN]
+    
+    # Pelvis
+    - [LASI, RASI]
+    - [LASI, LPSI]
+    - [RASI, RPSI]
+    - [LPSI, RPSI]
+    - [T10, LPSI]
+    - [T10, RPSI]
+    
+    # Left leg
+    - [LASI, LKNE]
+    - [LKNE, LANK]
+    - [LANK, LHEE]
+    - [LANK, LTOE]
+    - [LHEE, LTOE]
+    
+    # Right leg
+    - [RASI, RKNE]
+    - [RKNE, RANK]
+    - [RANK, RHEE]
+    - [RANK, RTOE]
+    - [RHEE, RTOE]
+  
+  # Color scheme for different body parts
+  colors:
+    head: "#FF6B6B"      # Red
+    trunk: "#4ECDC4"     # Teal
+    pelvis: "#45B7D1"    # Blue
+    left_arm: "#96CEB4"  # Green
+    right_arm: "#FFEAA7" # Yellow
+    left_leg: "#DDA0DD"  # Plum
+    right_leg: "#F39C12" # Orange
+    default: "#FFFFFF"   # White
+
+  # Marker to body part mapping for coloring
+  body_parts:
+    head: [HEAD, LFHD, RFHD, LBHD, RBHD]
+    trunk: [C7, T10, CLAV, STRN, RBAK]
+    pelvis: [LASI, RASI, LPSI, RPSI, SACR]
+    left_arm: [LSHO, LELB, LWRA, LWRB, LFIN]
+    right_arm: [RSHO, RELB, RWRA, RWRB, RFIN]
+    left_leg: [LKNE, LANK, LHEE, LTOE]
+    right_leg: [RKNE, RANK, RHEE, RTOE]
+
+# Simple marker set for testing
+simple:
+  name: "Simple Test Set"
+  description: "Minimal marker set for testing"
+  
+  markers:
+    - HEAD
+    - LSHO
+    - RSHO
+    - LELB
+    - RELB
+    - LHIP
+    - RHIP
+    - LKNE
+    - RKNE
+    - LANK
+    - RANK
+  
+  connections:
+    - [HEAD, LSHO]
+    - [HEAD, RSHO]
+    - [LSHO, RSHO]
+    - [LSHO, LELB]
+    - [RSHO, RELB]
+    - [LSHO, LHIP]
+    - [RSHO, RHIP]
+    - [LHIP, RHIP]
+    - [LHIP, LKNE]
+    - [RHIP, RKNE]
+    - [LKNE, LANK]
+    - [RKNE, RANK]
+  
+  colors:
+    default: "#000000"
+
+# Lower body only marker set
+lower_body:
+  name: "Lower Body Only"
+  description: "Lower body marker set for gait analysis"
+  
+  markers:
+    - LASI
+    - RASI
+    - LPSI
+    - RPSI
+    - LKNE
+    - RKNE
+    - LANK
+    - RANK
+    - LHEE
+    - RHEE
+    - LTOE
+    - RTOE
+  
+  connections:
+    # Pelvis
+    - [LASI, RASI]
+    - [LASI, LPSI]
+    - [RASI, RPSI]
+    - [LPSI, RPSI]
+    # Left leg
+    - [LASI, LKNE]
+    - [LPSI, LKNE]
+    - [LKNE, LANK]
+    - [LANK, LHEE]
+    - [LANK, LTOE]
+    - [LHEE, LTOE]
+    # Right leg
+    - [RASI, RKNE]
+    - [RPSI, RKNE]
+    - [RKNE, RANK]
+    - [RANK, RHEE]
+    - [RANK, RTOE]
+    - [RHEE, RTOE]
+  
+  colors:
+    pelvis: "#45B7D1"
+    left_leg: "#DDA0DD"
+    right_leg: "#F39C12"
+    default: "#FFFFFF"

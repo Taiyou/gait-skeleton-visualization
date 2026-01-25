@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""
+Gait Skeleton Visualization - Main Script
+
+This script provides the main entry point for creating skeleton animations
+from gait analysis marker data.
+
+Usage:
+    python main.py --input data/sample_gait.csv --output output/gait_video.mp4
+    python main.py --input data/sample_gait.csv --output output/gait_video.mp4 --view 3d
+    python main.py --input data/sample_gait.csv --output output/gait_video.mp4 --view sagittal
+    python main.py --input data/sample_gait.csv --output output/gait_video.mp4 --view multi
+"""
+
+import argparse
+from pathlib import Path
+import sys
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from src.data_loader import DataLoader
+from src.skeleton_model import SkeletonModel
+from src.visualizer_3d import Visualizer3D
+from src.visualizer_2d import Visualizer2D, MultiViewVisualizer
+from src.video_exporter import VideoExporter
+
+
+def progress_bar(current: int, total: int, bar_length: int = 40) -> None:
+    """Display a progress bar in the console."""
+    percent = current / total
+    filled = int(bar_length * percent)
+    bar = '█' * filled + '░' * (bar_length - filled)
+    sys.stdout.write(f'\r  Progress: |{bar}| {percent*100:.1f}% ({current}/{total})')
+    sys.stdout.flush()
+    if current == total:
+        print()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Create skeleton animation from gait marker data"
+    )
+    
+    # Required arguments
+    parser.add_argument(
+        "--input", "-i",
+        type=str,
+        required=True,
+        help="Path to the input CSV file"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        type=str,
+        required=True,
+        help="Path for the output MP4 file"
+    )
+    
+    # Optional arguments
+    parser.add_argument(
+        "--config", "-c",
+        type=str,
+        default="config/marker_sets.yaml",
+        help="Path to marker set configuration file"
+    )
+    parser.add_argument(
+        "--marker-set", "-m",
+        type=str,
+        default="simple",
+        help="Name of the marker set to use (default: simple)"
+    )
+    parser.add_argument(
+        "--view", "-v",
+        type=str,
+        choices=["3d", "sagittal", "frontal", "transverse", "multi"],
+        default="3d",
+        help="View type: 3d, sagittal, frontal, transverse, or multi (default: 3d)"
+    )
+    parser.add_argument(
+        "--frame-rate", "-f",
+        type=float,
+        default=100.0,
+        help="Input data frame rate in Hz (default: 100)"
+    )
+    parser.add_argument(
+        "--output-fps",
+        type=int,
+        default=30,
+        help="Output video frame rate (default: 30)"
+    )
+    parser.add_argument(
+        "--show-labels",
+        action="store_true",
+        help="Show marker labels in visualization"
+    )
+    parser.add_argument(
+        "--start-frame",
+        type=int,
+        default=0,
+        help="Start frame for processing (default: 0)"
+    )
+    parser.add_argument(
+        "--end-frame",
+        type=int,
+        default=None,
+        help="End frame for processing (default: all frames)"
+    )
+    parser.add_argument(
+        "--marker-size",
+        type=int,
+        default=50,
+        help="Size of marker points (default: 50)"
+    )
+    parser.add_argument(
+        "--line-width",
+        type=float,
+        default=2.0,
+        help="Width of bone lines (default: 2.0)"
+    )
+    parser.add_argument(
+        "--auto-skeleton",
+        action="store_true",
+        help="Automatically create skeleton from data markers (no connections)"
+    )
+    
+    args = parser.parse_args()
+    
+    print("=" * 60)
+    print("Gait Skeleton Visualization")
+    print("=" * 60)
+    
+    # Load data
+    print(f"\n1. Loading data from: {args.input}")
+    loader = DataLoader()
+    loader.load_csv(args.input, frame_rate=args.frame_rate)
+    
+    # Load or create skeleton model
+    print(f"\n2. Loading skeleton model...")
+    config_path = Path(args.config)
+    
+    if args.auto_skeleton:
+        # Create skeleton from data markers (no connections)
+        print("   Using auto-skeleton mode (markers only, no connections)")
+        skeleton = SkeletonModel.from_markers(loader.markers)
+    elif config_path.exists():
+        try:
+            skeleton = SkeletonModel.from_yaml(str(config_path), args.marker_set)
+            print(f"   Loaded marker set: {skeleton.name}")
+        except ValueError as e:
+            print(f"   Warning: {e}")
+            print("   Creating skeleton from data markers...")
+            skeleton = SkeletonModel.from_markers(loader.markers)
+    else:
+        print(f"   Config file not found: {config_path}")
+        print("   Creating skeleton from data markers...")
+        skeleton = SkeletonModel.from_markers(loader.markers)
+    
+    # Filter skeleton to only include markers in the data
+    skeleton = skeleton.filter_markers(loader.markers)
+    print(f"   Active markers: {len(skeleton.markers)}")
+    print(f"   Active connections: {len(skeleton.connections)}")
+    
+    # Get data bounds
+    bounds = loader.get_data_bounds()
+    print(f"\n3. Data bounds:")
+    print(f"   X: {bounds['x'][0]:.1f} to {bounds['x'][1]:.1f}")
+    print(f"   Y: {bounds['y'][0]:.1f} to {bounds['y'][1]:.1f}")
+    print(f"   Z: {bounds['z'][0]:.1f} to {bounds['z'][1]:.1f}")
+    
+    # Get positions for selected frame range
+    start = args.start_frame
+    end = args.end_frame if args.end_frame is not None else loader.num_frames
+    end = min(end, loader.num_frames)
+    
+    print(f"\n4. Processing frames {start} to {end} ({end - start} frames)")
+    all_positions = [
+        loader.get_marker_positions(frame)
+        for frame in range(start, end)
+    ]
+    
+    # Create visualizer based on view type
+    print(f"\n5. Creating {args.view} visualization...")
+    
+    if args.view == "3d":
+        visualizer = Visualizer3D(
+            skeleton,
+            marker_size=args.marker_size,
+            line_width=args.line_width,
+        )
+    elif args.view == "multi":
+        visualizer = MultiViewVisualizer(
+            skeleton,
+            views=["sagittal", "frontal", "transverse"],
+            marker_size=args.marker_size,
+            line_width=args.line_width,
+        )
+    else:
+        visualizer = Visualizer2D(
+            skeleton,
+            view=args.view,
+            marker_size=args.marker_size,
+            line_width=args.line_width,
+        )
+    
+    visualizer.set_bounds(bounds)
+    
+    # Generate frames
+    print("\n6. Generating animation frames...")
+    frames = visualizer.create_animation_frames(
+        all_positions,
+        frame_rate=args.frame_rate,
+        show_labels=args.show_labels,
+        progress_callback=progress_bar,
+    )
+    
+    # Export video
+    print(f"\n7. Exporting video to: {args.output}")
+    exporter = VideoExporter(output_fps=args.output_fps)
+    exporter.export(frames, args.output, progress_callback=progress_bar)
+    
+    print("\n" + "=" * 60)
+    print("Done!")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()
