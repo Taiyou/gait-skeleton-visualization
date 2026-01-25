@@ -2,6 +2,17 @@
 
 A Python tool for creating skeleton animation videos from gait analysis marker data.
 
+## Demo
+
+<p align="center">
+  <img src="assets/demo_sagittal.gif" alt="Sagittal View" width="400"/>
+  <img src="assets/demo_3d.gif" alt="3D View" width="400"/>
+</p>
+
+<p align="center">
+  <em>Left: Sagittal (side) view | Right: 3D view</em>
+</p>
+
 ## Features
 
 - **Load CSV marker data**
