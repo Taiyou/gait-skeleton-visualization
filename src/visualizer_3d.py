@@ -277,10 +277,13 @@ class Visualizer3D:
         marker_positions: Dict[str, np.ndarray],
         frame_number: Optional[int] = None,
         show_labels: bool = False,
+        save_path: Optional[str] = None,
     ) -> None:
-        """Display a single frame interactively."""
-        self.render_frame(marker_positions, frame_number, show_labels=show_labels)
-        plt.show()
+        """Render a single frame and optionally save to file."""
+        fig = self.render_frame(marker_positions, frame_number, show_labels=show_labels)
+        if save_path:
+            fig.savefig(save_path, dpi=100, bbox_inches='tight')
+        return fig
     
     def close(self) -> None:
         """Close the figure."""

@@ -223,7 +223,11 @@ def main():
     start = args.start_frame
     end = args.end_frame if args.end_frame is not None else loader.num_frames
     end = min(end, loader.num_frames)
-    
+
+    if end <= start:
+        print(f"\nError: No frames to process (start={start}, end={end})")
+        sys.exit(1)
+
     print(f"\n4. Processing frames {start} to {end} ({end - start} frames)")
     exclude_set = set(args.exclude_markers)
     all_positions = []
