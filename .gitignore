@@ -25,6 +25,11 @@ Thumbs.db
 output/*.mp4
 output/*.gif
 output/*.avi
+output/*.png
+
+# Data files (not distributed)
+data/type03_segments/
+data/type03_segments.zip
 
 # Jupyter
 .ipynb_checkpoints/

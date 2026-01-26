@@ -142,8 +142,9 @@ class Visualizer2D:
         # Find max range for equal aspect ratio
         max_range = max(axis1_range, axis2_range)
 
-        # Ensure minimum range for visibility
-        min_range = 800  # Minimum range in mm for better visibility
+        # Ensure minimum range for visibility (adaptive to data scale)
+        data_scale = max(axis1_range, axis2_range)
+        min_range = data_scale * 1.0 if data_scale > 0 else 800
         max_range = max(max_range, min_range)
 
         # Calculate centers

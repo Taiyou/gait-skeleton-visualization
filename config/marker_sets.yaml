@@ -212,3 +212,83 @@ lower_body:
     left_leg: "#DDA0DD"
     right_leg: "#F39C12"
     default: "#FFFFFF"
+
+# Type03 segment marker set (26 markers, lowercase coordinate suffixes)
+type03:
+  name: "Type03 Segments"
+  description: "Type03 gait analysis marker set with 26 body markers"
+
+  markers:
+    # Head / Neck
+    - head
+    - ear
+    - neck
+    # Trunk
+    - ribR
+    - ribL
+    - midpsis
+    # Upper limbs
+    - shR
+    - shL
+    - elbR
+    - elbL
+    - wrR
+    - wrL
+    - hndR
+    - hndL
+    # Lower limbs
+    - hipR
+    - hipL
+    - knR
+    - knL
+    - anR
+    - anL
+    - helR
+    - helL
+    - balR
+    - balL
+    - toeR
+    - toeL
+
+  connections:
+    # Head / Neck
+    - [head, ear]
+    - [ear, neck]
+    # Trunk
+    - [neck, ribR]
+    - [neck, ribL]
+    - [ribR, ribL]
+    - [ribR, midpsis]
+    - [ribL, midpsis]
+    # Shoulder girdle
+    - [neck, shR]
+    - [neck, shL]
+    # Right arm
+    - [shR, elbR]
+    - [elbR, wrR]
+    - [wrR, hndR]
+    # Left arm
+    - [shL, elbL]
+    - [elbL, wrL]
+    - [wrL, hndL]
+    # Pelvic girdle
+    - [midpsis, hipR]
+    - [midpsis, hipL]
+    - [hipR, hipL]
+    # Right leg
+    - [hipR, knR]
+    - [knR, anR]
+    - [anR, helR]
+    - [anR, balR]
+    - [balR, toeR]
+    - [helR, toeR]
+    # Left leg
+    - [hipL, knL]
+    - [knL, anL]
+    - [anL, helL]
+    - [anL, balL]
+    - [balL, toeL]
+    - [helL, toeL]
+
+  colors:
+    default: "#000000"

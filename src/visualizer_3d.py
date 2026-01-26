@@ -26,10 +26,12 @@ class Visualizer3D:
         line_width: float = 2.0,
         view_elevation: float = 20,
         view_azimuth: float = -60,
+        clean_mode: bool = False,
+        zoom: float = 1.0,
     ):
         """
         Initialize the 3D visualizer.
-        
+
         Args:
             skeleton: SkeletonModel defining the structure
             figsize: Figure size in inches
@@ -38,6 +40,8 @@ class Visualizer3D:
             line_width: Width of bone lines
             view_elevation: Camera elevation angle
             view_azimuth: Camera azimuth angle
+            clean_mode: If True, remove all axes, panes, grid, and labels
+            zoom: Zoom factor (>1 = closer/larger body, <1 = farther/smaller)
         """
         self.skeleton = skeleton
         self.figsize = figsize
@@ -46,6 +50,8 @@ class Visualizer3D:
         self.line_width = line_width
         self.view_elevation = view_elevation
         self.view_azimuth = view_azimuth
+        self.clean_mode = clean_mode
+        self.zoom = zoom
         
         self.fig: Optional[plt.Figure] = None
         self.ax: Optional[Axes3D] = None
@@ -66,25 +72,39 @@ class Visualizer3D:
         self.fig = plt.figure(figsize=self.figsize, facecolor=self.bg_color)
         self.ax = self.fig.add_subplot(111, projection='3d')
         self.ax.set_facecolor(self.bg_color)
-        
-        # Style the axes
+
+        if self.clean_mode:
+            self._apply_clean_mode()
+        else:
+            # Style the axes
+            self.ax.xaxis.pane.fill = False
+            self.ax.yaxis.pane.fill = False
+            self.ax.zaxis.pane.fill = False
+            self.ax.xaxis.pane.set_edgecolor('gray')
+            self.ax.yaxis.pane.set_edgecolor('gray')
+            self.ax.zaxis.pane.set_edgecolor('gray')
+
+            # Set labels
+            self.ax.set_xlabel('X (mm)', color='black', fontsize=10)
+            self.ax.set_ylabel('Y (mm)', color='black', fontsize=10)
+            self.ax.set_zlabel('Z (mm)', color='black', fontsize=10)
+
+            # Set tick colors
+            self.ax.tick_params(colors='white', labelsize=8)
+
+        # Set view angle
+        self.ax.view_init(elev=self.view_elevation, azim=self.view_azimuth)
+
+    def _apply_clean_mode(self) -> None:
+        """Remove all axes, panes, grid, and labels for clean rendering."""
+        self.ax.set_axis_off()
         self.ax.xaxis.pane.fill = False
         self.ax.yaxis.pane.fill = False
         self.ax.zaxis.pane.fill = False
-        self.ax.xaxis.pane.set_edgecolor('gray')
-        self.ax.yaxis.pane.set_edgecolor('gray')
-        self.ax.zaxis.pane.set_edgecolor('gray')
-        
-        # Set labels
-        self.ax.set_xlabel('X (mm)', color='black', fontsize=10)
-        self.ax.set_ylabel('Y (mm)', color='black', fontsize=10)
-        self.ax.set_zlabel('Z (mm)', color='black', fontsize=10)
-        
-        # Set tick colors
-        self.ax.tick_params(colors='white', labelsize=8)
-        
-        # Set view angle
-        self.ax.view_init(elev=self.view_elevation, azim=self.view_azimuth)
+        self.ax.xaxis.pane.set_edgecolor('none')
+        self.ax.yaxis.pane.set_edgecolor('none')
+        self.ax.zaxis.pane.set_edgecolor('none')
+        self.ax.grid(False)
         
     def _apply_bounds(self) -> None:
         """Apply axis bounds with equal aspect ratio."""
@@ -104,9 +124,9 @@ class Visualizer3D:
         y_center = (self.bounds['y'][0] + self.bounds['y'][1]) / 2
         z_center = (self.bounds['z'][0] + self.bounds['z'][1]) / 2
         
-        # Set equal aspect ratio bounds
-        margin = max_range * 0.1  # 10% margin
-        half_range = max_range / 2 + margin
+        # Set equal aspect ratio bounds (zoom shrinks the view cube)
+        margin = max_range * 0.05
+        half_range = (max_range / 2 + margin) / self.zoom
         
         self.ax.set_xlim(x_center - half_range, x_center + half_range)
         self.ax.set_ylim(y_center - half_range, y_center + half_range)
@@ -172,7 +192,11 @@ class Visualizer3D:
         
         # Apply bounds
         self._apply_bounds()
-        
+
+        # Re-apply clean mode after bounds (set_xlim etc. can re-enable axes)
+        if self.clean_mode:
+            self._apply_clean_mode()
+
         # Add title with frame info
         title_parts = []
         if frame_number is not None:
@@ -181,7 +205,7 @@ class Visualizer3D:
             title_parts.append(f"Time: {time_seconds:.3f}s")
         if title_parts:
             ax.set_title(" | ".join(title_parts), color='black', fontsize=12)
-        
+
         return self.fig
     
     def create_animation_frames(
@@ -211,12 +235,15 @@ class Visualizer3D:
         
         for i, positions in enumerate(all_positions):
             self.ax.cla()
-            
+
             # Re-apply axis settings after clear
-            self.ax.set_xlabel('X (mm)', color='black', fontsize=10)
-            self.ax.set_ylabel('Y (mm)', color='black', fontsize=10)
-            self.ax.set_zlabel('Z (mm)', color='black', fontsize=10)
-            self.ax.tick_params(colors='white', labelsize=8)
+            if self.clean_mode:
+                self._apply_clean_mode()
+            else:
+                self.ax.set_xlabel('X (mm)', color='black', fontsize=10)
+                self.ax.set_ylabel('Y (mm)', color='black', fontsize=10)
+                self.ax.set_zlabel('Z (mm)', color='black', fontsize=10)
+                self.ax.tick_params(colors='white', labelsize=8)
             self.ax.view_init(elev=self.view_elevation, azim=self.view_azimuth)
             
             # Render the frame
