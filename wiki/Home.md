@@ -8,6 +8,7 @@ Welcome to the Gait Skeleton Visualization wiki! This tool creates skeleton anim
 - [CSV Data Format](CSV-Data-Format)
 - [Marker Set Configuration](Marker-Set-Configuration)
 - [View Types](View-Types)
+- [Noise Removal](Noise-Removal)
 - [Python API](Python-API)
 - [Troubleshooting](Troubleshooting)
 
@@ -21,6 +22,11 @@ Welcome to the Gait Skeleton Visualization wiki! This tool creates skeleton anim
   - Frontal plane (front view)
   - Transverse plane (top view)
   - Multi-view display
+- **Noise removal and drift correction**:
+  - Smooth PCA heading correction
+  - Y-axis drift removal
+  - IMU heading drift correction
+  - Turnaround detection
 - Export to MP4 video format
 
 ## Coordinate System
