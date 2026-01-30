@@ -38,6 +38,8 @@ For best results, apply corrections in this order:
 
 ### 1. Smooth PCA Correction
 
+> **See also:** [Smooth PCA Detailed Documentation](Smooth-PCA) for in-depth explanation with examples.
+
 **Location:** `scripts/gait_correction/smooth_pca.py`
 
 The Smooth PCA method corrects heading drift by:

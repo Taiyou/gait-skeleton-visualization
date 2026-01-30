@@ -9,6 +9,7 @@ Welcome to the Gait Skeleton Visualization wiki! This tool creates skeleton anim
 - [Marker Set Configuration](Marker-Set-Configuration)
 - [View Types](View-Types)
 - [Noise Removal](Noise-Removal)
+  - [Smooth PCA](Smooth-PCA)
 - [Python API](Python-API)
 - [Troubleshooting](Troubleshooting)
 
