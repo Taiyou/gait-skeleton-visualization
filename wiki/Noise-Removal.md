@@ -8,12 +8,31 @@ Motion capture data from IMU-based systems (like Xsens MVN) often contains vario
 
 ## Types of Noise and Drift
 
+![Drift Types](https://raw.githubusercontent.com/Taiyou/gait-skeleton-visualization/main/assets/wiki/drift_types.png)
+
 | Type | Description | Cause |
 |------|-------------|-------|
 | **IMU Heading Drift** | Gradual rotation of the trajectory over time | Gyroscope integration error |
 | **Y-axis Drift** | Lateral displacement accumulating over time | Accelerometer bias |
 | **180-degree Flips** | Sudden direction changes in PCA analysis | Ambiguity in principal component direction |
 | **High-frequency Noise** | Jitter in position data | Sensor noise, electromagnetic interference |
+
+---
+
+## Recommended Workflow
+
+![Workflow Diagram](https://raw.githubusercontent.com/Taiyou/gait-skeleton-visualization/main/assets/wiki/workflow_diagram.png)
+
+For best results, apply corrections in this order:
+
+1. **Load raw data** - Import from Xsens Excel or CSV
+2. **Skip unstable frames** - Remove first/last 5-10 seconds
+3. **Smooth PCA correction** - Fix heading drift
+4. **Y-drift removal** - Remove lateral drift
+5. **Horizontal alignment** - Align with X-axis
+6. **Export corrected data** - Save for visualization
+
+---
 
 ## Correction Methods
 
@@ -26,6 +45,8 @@ The Smooth PCA method corrects heading drift by:
 2. Unwrapping 180-degree flips
 3. Smoothly interpolating angles across all frames
 4. Applying continuous rotation correction
+
+![Smooth PCA Pipeline](https://raw.githubusercontent.com/Taiyou/gait-skeleton-visualization/main/assets/wiki/smooth_pca_pipeline.png)
 
 #### Parameters
 
@@ -104,6 +125,8 @@ For each frame and segment:
 **Location:** `scripts/gait_correction/drift_removal.py`
 
 Removes lateral drift using high-pass filtering.
+
+![Y-drift Removal](https://raw.githubusercontent.com/Taiyou/gait-skeleton-visualization/main/assets/wiki/y_drift_removal.png)
 
 #### Usage
 
@@ -184,6 +207,8 @@ Advanced correction using IMU orientation data and turnaround detection.
 - **Turnaround Detection**: Automatically detects when walking direction reverses
 - **IMU Heading Correction**: Uses gyroscope yaw data to correct heading drift
 - **Segment-wise Correction**: Applies different corrections between turnarounds
+
+![Turnaround Detection](https://raw.githubusercontent.com/Taiyou/gait-skeleton-visualization/main/assets/wiki/turnaround_detection.png)
 
 #### Usage
 
@@ -271,20 +296,7 @@ angle = np.arctan2(pca.components_[0, 1], pca.components_[0, 0])
 
 ---
 
-## Recommended Workflow
-
-For best results, apply corrections in this order:
-
-```
-1. Load raw data
-2. Skip initial/final unstable frames (5-10 seconds)
-3. Apply Smooth PCA correction (heading drift)
-4. Apply Y-drift removal
-5. Apply horizontal alignment
-6. Export corrected data
-```
-
-### Complete Example
+## Complete Example
 
 ```python
 from scripts.gait_correction.loader import load_xsens_data
