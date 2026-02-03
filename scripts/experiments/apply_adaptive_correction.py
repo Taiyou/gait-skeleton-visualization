@@ -12,28 +12,33 @@ Strategy:
 This preserves natural walking patterns while removing cumulative IMU drift.
 """
 
-import sys
 from pathlib import Path
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+import pandas as pd
 from scipy.ndimage import uniform_filter1d
-from scipy.signal import savgol_filter
 from sklearn.decomposition import PCA
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.gait_correction.loader import load_xsens_data
 from scripts.gait_correction.export import export_to_csv
+from scripts.gait_correction.turnaround import detect_turnarounds_adaptive
+from scripts.utils.config import setup_matplotlib, GaitCorrectionConfig
+from scripts.utils.plotting import (
+    plot_multi_method_comparison,
+    calc_range,
+    PlotConfig,
+)
+
+# Setup matplotlib backend
+setup_matplotlib()
+import matplotlib.pyplot as plt
 
 
 def apply_adaptive_correction(
     data: np.ndarray,
     frame_rate: int = 60,
     pelvis_index: int = 0,
-    reference_seconds: float = 60.0,  # Use first N seconds as reference
-    drift_window_seconds: float = 10.0,  # Window for drift estimation
+    reference_seconds: float = 60.0,
+    drift_window_seconds: float = 10.0,
 ) -> tuple[np.ndarray, dict]:
     """
     Apply adaptive drift correction.
@@ -61,9 +66,7 @@ def apply_adaptive_correction(
     pelvis_x = data[:, pelvis_index, 0]
     pelvis_y = data[:, pelvis_index, 1]
 
-    # =========================================================================
     # Step 1: Global PCA rotation
-    # =========================================================================
     print("\n[Step 1] Global PCA rotation...")
 
     xy_data = np.column_stack([pelvis_x, pelvis_y])
@@ -88,15 +91,12 @@ def apply_adaptive_correction(
     print(f"  Rotated by {np.degrees(-global_angle):.2f}°")
     info['rotation_angle'] = np.degrees(-global_angle)
 
-    # =========================================================================
     # Step 2: Establish reference Y behavior from initial period
-    # =========================================================================
     print(f"\n[Step 2] Establishing reference from first {reference_seconds}s...")
 
     ref_frames = int(reference_seconds * frame_rate)
     pelvis_y_rotated = corrected[:, pelvis_index, 1]
 
-    # Reference period statistics
     ref_y = pelvis_y_rotated[:ref_frames]
     ref_median = np.median(ref_y)
     ref_std = np.std(ref_y)
@@ -107,40 +107,29 @@ def apply_adaptive_correction(
     info['ref_std'] = ref_std
     info['ref_range'] = ref_range
 
-    # =========================================================================
     # Step 3: Estimate cumulative drift over time
-    # =========================================================================
     print("\n[Step 3] Estimating cumulative drift...")
 
-    # Calculate running median Y (low-frequency component = drift)
     window_frames = int(drift_window_seconds * frame_rate)
     if window_frames % 2 == 0:
         window_frames += 1
 
-    # Use large window to capture only drift, not walking oscillation
     y_drift = uniform_filter1d(pelvis_y_rotated, size=window_frames, mode='nearest')
-
-    # Drift relative to reference
     drift_from_ref = y_drift - ref_median
 
     print(f"  Max drift from reference: {np.max(np.abs(drift_from_ref)):.2f}m")
     info['max_drift'] = np.max(np.abs(drift_from_ref))
 
-    # =========================================================================
     # Step 4: Apply adaptive correction
-    # =========================================================================
     print("\n[Step 4] Applying adaptive correction...")
 
-    # Subtract the estimated drift from all segments
     for body_idx in range(n_segments):
         corrected[:, body_idx, 1] -= drift_from_ref
 
-    # Center at Y=0
     final_median = np.median(corrected[:, pelvis_index, 1])
     for body_idx in range(n_segments):
         corrected[:, body_idx, 1] -= final_median
 
-    # Final statistics
     final_y = corrected[:, pelvis_index, 1]
     final_range = final_y.max() - final_y.min()
 
@@ -162,11 +151,7 @@ def apply_turnaround_based_correction(
     1. Detects turnaround points
     2. For each walking segment, calculates median Y
     3. Aligns all segments to have same median Y
-
-    This is effective for back-and-forth walking with accumulating drift.
     """
-    from scripts.gait_correction.turnaround import detect_turnarounds_adaptive
-
     corrected = data.copy()
     n_frames, n_segments, _ = data.shape
     info = {}
@@ -174,9 +159,7 @@ def apply_turnaround_based_correction(
     pelvis_x = data[:, pelvis_index, 0]
     pelvis_y = data[:, pelvis_index, 1]
 
-    # =========================================================================
     # Step 1: Global PCA rotation
-    # =========================================================================
     print("\n[Step 1] Global PCA rotation...")
 
     xy_data = np.column_stack([pelvis_x, pelvis_y])
@@ -200,9 +183,7 @@ def apply_turnaround_based_correction(
 
     print(f"  Rotated by {np.degrees(-global_angle):.2f}°")
 
-    # =========================================================================
     # Step 2: Detect turnarounds
-    # =========================================================================
     print("\n[Step 2] Detecting turnarounds...")
 
     pelvis_x_rotated = corrected[:, pelvis_index, 0]
@@ -212,12 +193,9 @@ def apply_turnaround_based_correction(
     print(f"  Found {len(turnarounds.segments)} walking segments")
     info['n_segments'] = len(turnarounds.segments)
 
-    # =========================================================================
     # Step 3: Align each segment's median Y to common baseline
-    # =========================================================================
     print("\n[Step 3] Aligning segments...")
 
-    # Use first segment's median as reference
     first_seg = turnarounds.segments[0]
     ref_median = np.median(pelvis_y_rotated[first_seg[0]:first_seg[1]+1])
 
@@ -229,22 +207,17 @@ def apply_turnaround_based_correction(
 
         seg_y = pelvis_y_rotated[start:end+1]
         seg_median = np.median(seg_y)
-
-        # Offset to align with reference
         offset = seg_median - ref_median
         y_correction[start:end+1] = offset
 
-    # Smooth transitions
     smooth_window = int(0.5 * frame_rate)
     if smooth_window % 2 == 0:
         smooth_window += 1
     y_correction_smooth = uniform_filter1d(y_correction, size=smooth_window, mode='nearest')
 
-    # Apply correction
     for body_idx in range(n_segments):
         corrected[:, body_idx, 1] -= y_correction_smooth
 
-    # Center at Y=0
     final_median = np.median(corrected[:, pelvis_index, 1])
     for body_idx in range(n_segments):
         corrected[:, body_idx, 1] -= final_median
@@ -266,7 +239,7 @@ def plot_comparison(
     frame_rate: int = 60,
     pelvis_index: int = 0,
 ):
-    """Create comparison plot."""
+    """Create comparison plot using shared utilities."""
     fig, axes = plt.subplots(2, 4, figsize=(20, 10))
 
     n_frames = len(original)
@@ -344,7 +317,6 @@ def main():
     original_data = data.positions.copy()
 
     # Load V7 for comparison
-    import pandas as pd
     v7_df = pd.read_csv(output_dir / "NCC24-001_v7_final.csv")
     v7_data = original_data.copy()
     v7_data[:, 0, 0] = v7_df['Pelvis_X'].values
@@ -355,7 +327,7 @@ def main():
     adaptive_data, adaptive_info = apply_adaptive_correction(
         original_data.copy(),
         frame_rate=frame_rate,
-        reference_seconds=60.0,  # Use first 1 minute as reference
+        reference_seconds=60.0,
         drift_window_seconds=10.0,
     )
 

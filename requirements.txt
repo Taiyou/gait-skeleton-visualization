@@ -14,5 +14,12 @@ opencv-python>=4.5.0
 # Configuration
 pyyaml>=6.0
 
+# Signal processing and machine learning
+scipy>=1.7.0
+scikit-learn>=1.0.0
+
+# Excel file reading
+openpyxl>=3.0.0
+
 # Optional: For enhanced 3D visualization (uncomment if needed)
 # plotly>=5.0.0

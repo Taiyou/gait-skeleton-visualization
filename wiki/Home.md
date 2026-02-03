@@ -11,6 +11,7 @@ Welcome to the Gait Skeleton Visualization wiki! This tool creates skeleton anim
 - [Noise Removal](Noise-Removal)
   - [Smooth PCA](Smooth-PCA)
 - [Python API](Python-API)
+- [Refactoring Guide](Refactoring-Guide) - **NEW: Shared utilities and configuration**
 - [Troubleshooting](Troubleshooting)
 
 ## Features

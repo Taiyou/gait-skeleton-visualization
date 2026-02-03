@@ -14,21 +14,25 @@ Strategy:
    - Preserve Y oscillation within segment
 """
 
-import sys
 from pathlib import Path
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from scipy.ndimage import uniform_filter1d
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.gait_correction.loader import load_xsens_data
 from scripts.gait_correction.smooth_pca import apply_smooth_pca_correction, SmoothPCAParams
 from scripts.gait_correction.drift_removal import apply_full_drift_correction
 from scripts.gait_correction.turnaround import detect_turnarounds_adaptive
 from scripts.gait_correction.export import export_to_csv, export_to_excel
+from scripts.utils.config import setup_matplotlib, GaitCorrectionConfig
+from scripts.utils.plotting import (
+    plot_multi_method_comparison,
+    plot_time_series_comparison,
+    calc_range,
+    PlotConfig,
+)
+
+# Setup matplotlib backend
+setup_matplotlib()
 
 
 def apply_balanced_y_correction(
@@ -148,92 +152,11 @@ def apply_aggressive_alignment(
     return corrected
 
 
-def plot_comparison(
-    original: np.ndarray,
-    baseline: np.ndarray,
-    balanced: np.ndarray,
-    aggressive: np.ndarray,
-    output_path: Path,
-    pelvis_index: int = 0,
-):
-    """Create comparison plot."""
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-
-    def calc_y_range(d):
-        return np.max(d[:, pelvis_index, 1]) - np.min(d[:, pelvis_index, 1])
-
-    # Row 1: Trajectories
-    ax = axes[0, 0]
-    ax.plot(original[:, pelvis_index, 0], original[:, pelvis_index, 1],
-            'b-', alpha=0.5, linewidth=0.3)
-    ax.set_title(f'Original\nY range: {calc_y_range(original):.2f}m')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[0, 1]
-    ax.plot(balanced[:, pelvis_index, 0], balanced[:, pelvis_index, 1],
-            'g-', alpha=0.5, linewidth=0.3)
-    ax.set_title(f'Balanced Y Correction\nY range: {calc_y_range(balanced):.2f}m')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[0, 2]
-    ax.plot(aggressive[:, pelvis_index, 0], aggressive[:, pelvis_index, 1],
-            'r-', alpha=0.5, linewidth=0.3)
-    ax.set_title(f'Aggressive Alignment\nY range: {calc_y_range(aggressive):.2f}m')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-
-    # Row 2: Overlays and Y time series
-    ax = axes[1, 0]
-    ax.plot(original[:, pelvis_index, 0], original[:, pelvis_index, 1],
-            'b-', alpha=0.3, linewidth=0.3, label='Original')
-    ax.plot(balanced[:, pelvis_index, 0], balanced[:, pelvis_index, 1],
-            'g-', alpha=0.6, linewidth=0.3, label='Balanced')
-    ax.set_title('Original vs Balanced')
-    ax.legend()
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[1, 1]
-    ax.plot(original[:, pelvis_index, 0], original[:, pelvis_index, 1],
-            'b-', alpha=0.3, linewidth=0.3, label='Original')
-    ax.plot(aggressive[:, pelvis_index, 0], aggressive[:, pelvis_index, 1],
-            'r-', alpha=0.6, linewidth=0.3, label='Aggressive')
-    ax.set_title('Original vs Aggressive')
-    ax.legend()
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-
-    # Y coordinate over time
-    ax = axes[1, 2]
-    n_frames = len(original)
-    frames = np.arange(0, n_frames, 10)  # Subsample for clarity
-    ax.plot(frames, original[::10, pelvis_index, 1], 'b-', alpha=0.5, label='Original', linewidth=0.5)
-    ax.plot(frames, balanced[::10, pelvis_index, 1], 'g-', alpha=0.7, label='Balanced', linewidth=0.5)
-    ax.plot(frames, aggressive[::10, pelvis_index, 1], 'r-', alpha=0.7, label='Aggressive', linewidth=0.5)
-    ax.set_title('Y Coordinate Over Time')
-    ax.set_xlabel('Frame')
-    ax.set_ylabel('Y (m)')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
-    print(f"Saved plot to {output_path}")
-
-
 def main():
     input_path = Path("data/type2/type02_02/NCC24-001.xlsx")
     output_dir = input_path.parent
     frame_rate = 60
+    config = GaitCorrectionConfig(frame_rate=frame_rate)
 
     print("=" * 70)
     print("Balanced Y Correction for Diagonal Offset Removal")
@@ -247,16 +170,16 @@ def main():
     # Baseline correction
     print("\n[2/6] Applying baseline correction...")
     params = SmoothPCAParams(
-        window_seconds=30.0,
-        sample_interval_seconds=5.0,
-        smoothing_factor=0.1,
+        window_seconds=config.pca_window_seconds,
+        sample_interval_seconds=config.pca_sample_interval_seconds,
+        smoothing_factor=config.pca_smoothing_factor,
         frame_rate=frame_rate,
     )
 
     baseline, _, _ = apply_smooth_pca_correction(
         data.positions,
-        skip_start_seconds=5.0,
-        skip_end_seconds=5.0,
+        skip_start_seconds=config.skip_start_seconds,
+        skip_end_seconds=config.skip_end_seconds,
         params=params,
     )
 
@@ -289,22 +212,29 @@ def main():
     csv_path_agg = output_dir / f"{stem}_aggressive_corrected.csv"
     export_to_csv(aggressive, csv_path_agg, data.segment_names, frame_rate=frame_rate)
 
-    # Plot
+    # Plot using shared utilities
     print("\n[6/6] Generating visualization...")
-    plot_comparison(original_data, baseline, balanced, aggressive, plot_path)
+    plot_config = PlotConfig(frame_rate=frame_rate)
+    plot_results = [
+        {"name": "Balanced Y Correction", "data": balanced},
+        {"name": "Aggressive Alignment", "data": aggressive},
+    ]
+    plot_multi_method_comparison(
+        plot_results,
+        original_data,
+        plot_path,
+        config=plot_config,
+    )
 
     # Summary
-    def y_range(d):
-        return np.max(d[:, 0, 1]) - np.min(d[:, 0, 1])
-
-    orig_y = y_range(original_data)
+    orig_y = calc_range(original_data, 1, config.pelvis_index)
 
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
     print(f"Original Y range:     {orig_y:.2f}m")
-    print(f"Balanced:             {y_range(balanced):.2f}m ({(1-y_range(balanced)/orig_y)*100:.1f}% reduction)")
-    print(f"Aggressive:           {y_range(aggressive):.2f}m ({(1-y_range(aggressive)/orig_y)*100:.1f}% reduction)")
+    print(f"Balanced:             {calc_range(balanced, 1):.2f}m ({(1-calc_range(balanced, 1)/orig_y)*100:.1f}% reduction)")
+    print(f"Aggressive:           {calc_range(aggressive, 1):.2f}m ({(1-calc_range(aggressive, 1)/orig_y)*100:.1f}% reduction)")
     print(f"\nRecommended: Balanced correction (preserves natural sway)")
     print(f"Output: {csv_path}")
 

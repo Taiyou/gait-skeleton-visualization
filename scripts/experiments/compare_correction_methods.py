@@ -9,161 +9,26 @@ Usage:
     python scripts/compare_correction_methods.py <input_file> [--output <output_dir>]
 """
 
-import sys
 import argparse
 from pathlib import Path
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.gait_correction.loader import load_xsens_data
 from scripts.gait_correction.smooth_pca import apply_smooth_pca_correction, SmoothPCAParams
 from scripts.gait_correction.drift_removal import apply_full_drift_correction
-from scripts.gait_correction.advanced_correction import (
-    apply_all_methods,
-    CorrectionResult,
-)
+from scripts.gait_correction.advanced_correction import apply_all_methods
 from scripts.gait_correction.export import export_to_csv
+from scripts.utils.config import setup_matplotlib, GaitCorrectionConfig
+from scripts.utils.plotting import (
+    plot_multi_method_comparison,
+    plot_overlay_trajectories,
+    print_summary_table,
+    calc_range,
+    PlotConfig,
+)
 
-
-def plot_all_methods(
-    original_data: np.ndarray,
-    baseline_data: np.ndarray,
-    results: list,
-    output_path: Path,
-    pelvis_index: int = 0,
-):
-    """Create comparison plot of all correction methods."""
-    n_methods = len(results) + 2  # Original + Baseline + Methods
-
-    # Calculate grid size
-    n_cols = 3
-    n_rows = (n_methods + n_cols - 1) // n_cols
-
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5 * n_rows))
-    axes = axes.flatten()
-
-    # Plot original
-    ax = axes[0]
-    ax.plot(
-        original_data[:, pelvis_index, 0],
-        original_data[:, pelvis_index, 1],
-        'b-', alpha=0.5, linewidth=0.3,
-    )
-    y_range = np.max(original_data[:, pelvis_index, 1]) - np.min(original_data[:, pelvis_index, 1])
-    ax.set_title(f'Original\nY range: {y_range:.2f}m')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-
-    # Plot baseline (Smooth PCA + Drift)
-    ax = axes[1]
-    ax.plot(
-        baseline_data[:, pelvis_index, 0],
-        baseline_data[:, pelvis_index, 1],
-        'g-', alpha=0.5, linewidth=0.3,
-    )
-    y_range = np.max(baseline_data[:, pelvis_index, 1]) - np.min(baseline_data[:, pelvis_index, 1])
-    ax.set_title(f'Baseline (Smooth PCA + Drift)\nY range: {y_range:.2f}m')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-
-    # Plot each method
-    colors = ['red', 'purple', 'orange', 'cyan', 'magenta']
-    for i, result in enumerate(results):
-        ax = axes[i + 2]
-        ax.plot(
-            result.data[:, pelvis_index, 0],
-            result.data[:, pelvis_index, 1],
-            '-', color=colors[i % len(colors)], alpha=0.5, linewidth=0.3,
-        )
-        reduction = (1 - result.y_range_corrected / result.y_range_original) * 100
-        ax.set_title(f'{result.name}\nY range: {result.y_range_corrected:.2f}m ({reduction:.1f}% reduction)')
-        ax.set_xlabel('X (m)')
-        ax.set_ylabel('Y (m)')
-        ax.axis('equal')
-        ax.grid(True, alpha=0.3)
-
-    # Hide unused axes
-    for i in range(n_methods, len(axes)):
-        axes[i].set_visible(False)
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
-
-    print(f"Saved comparison plot to {output_path}")
-
-
-def plot_overlay_comparison(
-    original_data: np.ndarray,
-    results: list,
-    output_path: Path,
-    pelvis_index: int = 0,
-):
-    """Create overlay comparison of best methods."""
-    fig, ax = plt.subplots(figsize=(12, 8))
-
-    # Plot original (faint)
-    ax.plot(
-        original_data[:, pelvis_index, 0],
-        original_data[:, pelvis_index, 1],
-        'b-', alpha=0.2, linewidth=0.3, label='Original',
-    )
-
-    # Plot each method
-    colors = ['red', 'green', 'orange', 'purple', 'cyan']
-    for i, result in enumerate(results):
-        ax.plot(
-            result.data[:, pelvis_index, 0],
-            result.data[:, pelvis_index, 1],
-            '-', color=colors[i % len(colors)], alpha=0.6, linewidth=0.3,
-            label=f'{result.name} (Y:{result.y_range_corrected:.2f}m)',
-        )
-
-    ax.set_title('Method Comparison Overlay')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc='upper left', fontsize=8)
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
-
-    print(f"Saved overlay plot to {output_path}")
-
-
-def print_summary_table(results: list, baseline_y_range: float):
-    """Print summary table of all methods."""
-    print("\n" + "=" * 80)
-    print("SUMMARY TABLE")
-    print("=" * 80)
-    print(f"{'Method':<35} {'Y Range (m)':<15} {'Reduction':<15}")
-    print("-" * 80)
-    print(f"{'Original':<35} {results[0].y_range_original:<15.4f} {'-':<15}")
-    print(f"{'Baseline (Smooth PCA + Drift)':<35} {baseline_y_range:<15.4f} "
-          f"{(1 - baseline_y_range/results[0].y_range_original)*100:.1f}%")
-
-    for result in results:
-        reduction = (1 - result.y_range_corrected / result.y_range_original) * 100
-        print(f"{result.name:<35} {result.y_range_corrected:<15.4f} {reduction:.1f}%")
-
-    print("=" * 80)
-
-    # Find best method
-    best = min(results, key=lambda r: r.y_range_corrected)
-    print(f"\nBest method: {best.name}")
-    print(f"  Y range: {best.y_range_corrected:.4f}m")
-    print(f"  Reduction: {(1 - best.y_range_corrected/best.y_range_original)*100:.1f}%")
+# Setup matplotlib backend
+setup_matplotlib()
 
 
 def run_comparison(
@@ -179,6 +44,8 @@ def run_comparison(
         output_dir: Directory for output files
         frame_rate: Frame rate in Hz
     """
+    config = GaitCorrectionConfig(frame_rate=frame_rate)
+
     print("=" * 80)
     print(f"Gait Correction Method Comparison")
     print(f"Input: {input_path}")
@@ -195,38 +62,35 @@ def run_comparison(
     # Step 2: Apply baseline correction (Smooth PCA + Drift)
     print("\n[Step 2] Applying baseline correction (Smooth PCA + Drift)...")
     params = SmoothPCAParams(
-        window_seconds=30.0,
-        sample_interval_seconds=5.0,
-        smoothing_factor=0.1,
+        window_seconds=config.pca_window_seconds,
+        sample_interval_seconds=config.pca_sample_interval_seconds,
+        smoothing_factor=config.pca_smoothing_factor,
         frame_rate=frame_rate,
     )
 
     baseline_corrected, _, _ = apply_smooth_pca_correction(
         data.positions,
-        skip_start_seconds=5.0,
-        skip_end_seconds=5.0,
+        skip_start_seconds=config.skip_start_seconds,
+        skip_end_seconds=config.skip_end_seconds,
         params=params,
-        pelvis_index=0,
+        pelvis_index=config.pelvis_index,
     )
 
     baseline_corrected = apply_full_drift_correction(
         baseline_corrected,
-        drift_window_seconds=30.0,
+        drift_window_seconds=config.drift_window_seconds,
         frame_rate=frame_rate,
-        pelvis_index=0,
+        pelvis_index=config.pelvis_index,
     )
 
-    baseline_y_range = (
-        np.max(baseline_corrected[:, 0, 1]) - np.min(baseline_corrected[:, 0, 1])
-    )
+    baseline_y_range = calc_range(baseline_corrected, 1, config.pelvis_index)
 
     # Step 3: Apply all advanced methods (on baseline-corrected data)
-    # Pass original data for turnaround detection
     print("\n[Step 3] Applying advanced correction methods...")
     results = apply_all_methods(
         baseline_corrected,
         frame_rate=frame_rate,
-        pelvis_index=0,
+        pelvis_index=config.pelvis_index,
         original_data=original_data,
     )
 
@@ -237,19 +101,46 @@ def run_comparison(
     comparison_path = output_dir / f"{stem}_method_comparison.png"
     overlay_path = output_dir / f"{stem}_method_overlay.png"
 
-    plot_all_methods(
+    # Prepare results for plotting
+    plot_results = [
+        {
+            "name": "Baseline (Smooth PCA + Drift)",
+            "data": baseline_corrected,
+            "y_range_corrected": baseline_y_range,
+            "y_range_original": calc_range(original_data, 1, config.pelvis_index),
+        }
+    ]
+    for r in results:
+        plot_results.append({
+            "name": r.name,
+            "data": r.data,
+            "y_range_corrected": r.y_range_corrected,
+            "y_range_original": r.y_range_original,
+        })
+
+    # Multi-method grid comparison
+    plot_config = PlotConfig(frame_rate=frame_rate)
+    plot_multi_method_comparison(
+        plot_results,
         original_data,
-        baseline_corrected,
-        results,
         comparison_path,
-        pelvis_index=0,
+        config=plot_config,
     )
 
-    plot_overlay_comparison(
-        original_data,
-        results,
+    # Overlay comparison
+    overlay_datasets = [{"name": "Original", "data": original_data, "alpha": 0.2}]
+    for r in plot_results:
+        overlay_datasets.append({
+            "name": f"{r['name']} (Y:{r['y_range_corrected']:.2f}m)",
+            "data": r["data"],
+            "alpha": 0.6,
+        })
+
+    plot_overlay_trajectories(
+        overlay_datasets,
         overlay_path,
-        pelvis_index=0,
+        config=plot_config,
+        title="Method Comparison Overlay",
     )
 
     # Step 5: Export best result
@@ -266,7 +157,12 @@ def run_comparison(
     )
 
     # Print summary
-    print_summary_table(results, baseline_y_range)
+    original_y_range = calc_range(original_data, 1, config.pelvis_index)
+    summary_results = [
+        {"name": r.name, "y_range_corrected": r.y_range_corrected, "y_range_original": r.y_range_original}
+        for r in results
+    ]
+    print_summary_table(summary_results, original_y_range, baseline_y_range)
 
     print(f"\nOutput files:")
     print(f"  Comparison: {comparison_path}")
@@ -294,7 +190,7 @@ def main():
 
     if not args.input.exists():
         print(f"Error: Input file not found: {args.input}")
-        sys.exit(1)
+        return 1
 
     output_dir = args.output or args.input.parent
 
@@ -304,6 +200,8 @@ def main():
         frame_rate=args.frame_rate,
     )
 
+    return 0
+
 
 if __name__ == '__main__':
-    main()
+    exit(main())

@@ -12,27 +12,25 @@ V7 Method:
 Key adjustment: Shorter high-pass filter window for more aggressive drift removal
 """
 
-import sys
 from pathlib import Path
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from scipy.ndimage import uniform_filter1d
-from scipy.signal import butter, filtfilt
 from sklearn.decomposition import PCA
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.gait_correction.loader import load_xsens_data
 from scripts.gait_correction.export import export_to_csv
+from scripts.utils.config import setup_matplotlib, GaitCorrectionConfig
+from scripts.utils.plotting import plot_trajectory_comparison, PlotConfig
+
+# Setup matplotlib backend
+setup_matplotlib()
 
 
 def apply_v7_tuned(
     data: np.ndarray,
     frame_rate: int = 60,
     pelvis_index: int = 0,
-    highpass_window_seconds: float = 5.0,  # Shorter window for more aggressive filtering
+    highpass_window_seconds: float = 5.0,
 ) -> np.ndarray:
     """
     Apply tuned V7 correction method.
@@ -122,67 +120,6 @@ def apply_v7_tuned(
     return corrected
 
 
-def plot_comparison(
-    original: np.ndarray,
-    corrected: np.ndarray,
-    output_path: Path,
-    frame_rate: int = 60,
-    pelvis_index: int = 0,
-):
-    """Create comparison plot matching reference style."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-    n_frames = len(original)
-    time = np.arange(n_frames) / frame_rate / 60  # Time in minutes
-
-    def calc_range(d, axis):
-        return np.max(d[:, pelvis_index, axis]) - np.min(d[:, pelvis_index, axis])
-
-    # Original
-    ax = axes[0]
-    scatter = ax.scatter(
-        original[:, pelvis_index, 0] * 1000,
-        original[:, pelvis_index, 1] * 1000,
-        c=time, cmap='viridis', s=0.5, alpha=0.5
-    )
-    ax.plot(original[0, pelvis_index, 0] * 1000, original[0, pelvis_index, 1] * 1000,
-            'go', markersize=10, label='Start')
-    ax.plot(original[-1, pelvis_index, 0] * 1000, original[-1, pelvis_index, 1] * 1000,
-            'rs', markersize=10, label='End')
-    ax.set_title(f'Original Walking Trajectory\nX: {calc_range(original, 0):.2f}m, Y: {calc_range(original, 1):.2f}m')
-    ax.set_xlabel('X (mm)')
-    ax.set_ylabel('Y (mm)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend()
-    plt.colorbar(scatter, ax=ax, label='Time (min)')
-
-    # Corrected
-    ax = axes[1]
-    scatter = ax.scatter(
-        corrected[:, pelvis_index, 0] * 1000,
-        corrected[:, pelvis_index, 1] * 1000,
-        c=time, cmap='viridis', s=0.5, alpha=0.5
-    )
-    ax.plot(corrected[0, pelvis_index, 0] * 1000, corrected[0, pelvis_index, 1] * 1000,
-            'go', markersize=10, label='Start')
-    ax.plot(corrected[-1, pelvis_index, 0] * 1000, corrected[-1, pelvis_index, 1] * 1000,
-            'rs', markersize=10, label='End')
-    ax.set_title(f'Corrected Walking Trajectory\nX: {calc_range(corrected, 0):.2f}m, Y: {calc_range(corrected, 1):.2f}m')
-    ax.set_xlabel('X (mm)')
-    ax.set_ylabel('Y (mm)')
-    ax.axis('equal')
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
-    ax.legend()
-    plt.colorbar(scatter, ax=ax, label='Time (min)')
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
-    print(f"\nSaved plot to {output_path}")
-
-
 def test_multiple_windows(data, frame_rate, pelvis_index=0):
     """Test different high-pass window sizes."""
     print("\n" + "=" * 70)
@@ -247,12 +184,25 @@ def main():
     csv_path = output_dir / f"{stem}_v7_tuned.csv"
     export_to_csv(corrected, csv_path, data.segment_names, frame_rate=frame_rate)
 
-    # Plot
+    # Plot using shared utility
     print("\n" + "=" * 70)
     print("[4/4] Generating visualization...")
     print("=" * 70)
     plot_path = output_dir / f"{stem}_v7_tuned.png"
-    plot_comparison(original_data, corrected, plot_path, frame_rate=frame_rate)
+
+    # Use shared plotting utility with mm units
+    plot_config = PlotConfig(
+        unit_scale=1000,
+        unit_label="mm",
+        frame_rate=frame_rate,
+    )
+    plot_trajectory_comparison(
+        original_data,
+        corrected,
+        plot_path,
+        titles=["Original Walking Trajectory", "Corrected Walking Trajectory"],
+        config=plot_config,
+    )
 
     # Summary
     orig_x = np.max(original_data[:, 0, 0]) - np.min(original_data[:, 0, 0])
